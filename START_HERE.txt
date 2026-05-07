@@ -1,0 +1,20 @@
+Music Streaming Analytics System
+
+HOW TO RUN THE PROJECT
+
+1. Open terminal inside backend folder
+
+2. Install dependencies:
+   pip install fastapi uvicorn
+
+3. Run backend:
+   python main.py
+
+4. Open browser:
+   http://127.0.0.1:8000
+
+Standalone Dashboard:
+Open dashboard/standalone_dashboard.html directly in browser.
+
+GitHub Upload:
+Upload the entire MusicStreamingAnalytics_Final folder to GitHub.
