@@ -3,6 +3,14 @@
 A full-stack Music Streaming Analytics project that provides insights into music streaming data using a modern frontend, FastAPI backend, and SQL database integration.
 
 ---
+# Live Demo
+
+Frontend:
+https://music-streaming-analytics.onrender.com
+
+API Docs:
+https://music-streaming-analytics.onrender.com/docs
+---
 
 # 📌 Project Overview
 
