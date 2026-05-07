@@ -168,18 +168,7 @@ http://127.0.0.1:8000/docs
 
 ---
 
-# 📸 Screenshots
 
-You can add screenshots of:
-
-* Homepage
-* Analytics dashboard
-* API responses
-* Database schema
-
-inside this section.
-
----
 
 # 📖 Documentation
 
@@ -190,22 +179,11 @@ Project documentation files are available in the `docs/` folder:
 
 ---
 
-# 👩‍💻 Author
 
-**Khushi**
-
----
 
 # 📜 License
 
 This project is created for educational and academic purposes.
 
----
 
-# ⭐ Future Improvements
 
-* Add authentication system
-* Advanced analytics dashboard
-* Real-time streaming insights
-* Better UI/UX
-* Deployment on cloud platforms
