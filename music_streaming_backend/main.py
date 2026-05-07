@@ -7,16 +7,19 @@ from typing import Optional
 import sqlite3, os
 from database import get_connection, init_db
 
+
+
+
 # ── APP SETUP ────────────────────────────────────────────────────────────────
-app = FastAPI(title="Music Streaming Analytics API", version="1.0.0")
+app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 # ── STARTUP ──────────────────────────────────────────────────────────────────
 @app.on_event("startup")
 def startup():
