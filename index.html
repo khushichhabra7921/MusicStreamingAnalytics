@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StreamStats — Live Analytics</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+:root{
+  --bg:#0a0a0f;--surface:#111118;--card:#16161f;--border:#252535;
+  --accent:#7c6af7;--accent2:#e8547a;--accent3:#2dd4bf;--accent4:#f59e0b;
+  --text:#f0effe;--muted:#6b6a8a;--subtle:#1e1e2e;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'DM Mono',monospace;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
+
+/* HEADER */
+header{padding:2rem 3rem 1.5rem;border-bottom:1px solid var(--border);display:flex;align-items:flex-end;justify-content:space-between;background:var(--surface)}
+.logo{font-family:'Syne',sans-serif;font-weight:800;font-size:1.8rem;letter-spacing:-0.03em}
+.logo span{color:var(--accent)}
+.tagline{font-size:0.68rem;color:var(--muted);letter-spacing:0.1em;text-transform:uppercase;margin-top:3px}
+.live-badge{display:flex;align-items:center;gap:6px;font-size:0.68rem;color:var(--accent3);letter-spacing:0.05em}
+.live-dot{width:7px;height:7px;border-radius:50%;background:var(--accent3);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
+
+/* NAV */
+nav{display:flex;padding:0 3rem;border-bottom:1px solid var(--border);background:var(--surface);position:sticky;top:0;z-index:100;gap:2px}
+nav button{font-family:'DM Mono',monospace;font-size:0.68rem;letter-spacing:0.08em;text-transform:uppercase;padding:.9rem 1.3rem;background:none;border:none;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;transition:all .2s;position:relative;top:1px}
+nav button.active{color:var(--accent);border-bottom-color:var(--accent)}
+nav button:hover:not(.active){color:var(--text)}
+
+/* SEARCH BAR */
+.search-bar{padding:1.2rem 3rem;background:var(--surface);border-bottom:1px solid var(--border);display:flex;gap:.8rem;align-items:center}
+.search-input{flex:1;max-width:400px;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:.6rem 1rem;color:var(--text);font-family:'DM Mono',monospace;font-size:.75rem;outline:none;transition:border-color .2s}
+.search-input:focus{border-color:var(--accent)}
+.search-input::placeholder{color:var(--muted)}
+.filter-select{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:.6rem 1rem;color:var(--text);font-family:'DM Mono',monospace;font-size:.72rem;outline:none;cursor:pointer}
+.filter-select:focus{border-color:var(--accent)}
+.btn{font-family:'DM Mono',monospace;font-size:.7rem;padding:.55rem 1.1rem;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;letter-spacing:.05em;transition:all .2s}
+.btn:hover{background:var(--card);color:var(--text)}
+.btn-primary{background:var(--accent);color:white;border-color:var(--accent)}
+.btn-primary:hover{background:#6a59e0;color:white}
+
+/* MAIN */
+main{padding:2rem 3rem;max-width:1400px;margin:0 auto}
+.tab-content{display:none}
+.tab-content.active{display:block}
+
+/* LOADING */
+.loading{text-align:center;padding:3rem;color:var(--muted);font-size:.78rem;letter-spacing:.05em}
+.spinner{width:24px;height:24px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 1rem}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* KPI */
+.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1.5rem}
+.kpi{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:1.3rem 1.5rem;position:relative;overflow:hidden;transition:border-color .2s;cursor:default}
+.kpi:hover{border-color:var(--accent)}
+.kpi::before{content:'';position:absolute;top:0;left:0;right:0;height:2px}
+.kpi:nth-child(1)::before{background:var(--accent)}
+.kpi:nth-child(2)::before{background:var(--accent2)}
+.kpi:nth-child(3)::before{background:var(--accent3)}
+.kpi:nth-child(4)::before{background:var(--accent4)}
+.kpi-label{font-size:.62rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:.5rem}
+.kpi-val{font-family:'Syne',sans-serif;font-size:2rem;font-weight:700;line-height:1}
+.kpi-sub{font-size:.62rem;color:var(--muted);margin-top:.35rem}
+
+/* GRID */
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:1.2rem;margin-bottom:1.2rem}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1.2rem;margin-bottom:1.2rem}
+.grid-2-1{display:grid;grid-template-columns:2fr 1fr;gap:1.2rem;margin-bottom:1.2rem}
+
+/* CARD */
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:1.3rem 1.5rem;animation:fadeUp .4s ease both}
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+.card-title{font-family:'Syne',sans-serif;font-size:.75rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:1.1rem;display:flex;align-items:center;gap:.5rem}
+.card-title::before{content:'';width:5px;height:5px;border-radius:50%;background:var(--accent);flex-shrink:0}
+
+/* TABLE */
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:.72rem}
+thead th{padding:.55rem .8rem;text-align:left;font-size:.6rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--border);white-space:nowrap;cursor:pointer;user-select:none}
+thead th:hover{color:var(--text)}
+tbody td{padding:.62rem .8rem;border-bottom:1px solid rgba(37,37,53,.5);white-space:nowrap}
+tbody tr:last-child td{border-bottom:none}
+tbody tr:hover td{background:rgba(124,106,247,.04)}
+.badge{display:inline-block;font-size:.58rem;padding:2px 7px;border-radius:20px;letter-spacing:.04em;text-transform:uppercase;font-weight:500}
+.badge-free{background:rgba(107,106,138,.2);color:var(--muted)}
+.badge-premium{background:rgba(124,106,247,.2);color:var(--accent)}
+.badge-family{background:rgba(45,212,191,.2);color:var(--accent3)}
+.badge-mobile{background:rgba(232,84,122,.15);color:var(--accent2)}
+.badge-desktop{background:rgba(124,106,247,.15);color:var(--accent)}
+.badge-speaker{background:rgba(245,158,11,.15);color:var(--accent4)}
+.badge-tablet{background:rgba(45,212,191,.15);color:var(--accent3)}
+.badge-verified{background:rgba(45,212,191,.15);color:var(--accent3)}
+.rank{font-family:'Syne',sans-serif;font-weight:700;color:var(--muted)}
+.rank-1{color:var(--accent4)}
+.rank-2{color:#aaa}
+.rank-3{color:#a07b50}
+
+/* BAR LIST */
+.bar-list{display:flex;flex-direction:column;gap:.65rem}
+.bar-meta{display:flex;justify-content:space-between;margin-bottom:3px;font-size:.7rem}
+.bar-name{color:var(--text);max-width:75%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar-count{color:var(--accent);font-weight:500}
+.bar-track{background:var(--subtle);border-radius:3px;height:5px;overflow:hidden}
+.bar-fill{height:100%;border-radius:3px;transition:width 1s ease}
+
+/* SEARCH RESULTS DROPDOWN */
+.search-results{position:absolute;top:100%;left:0;right:0;background:var(--card);border:1px solid var(--border);border-radius:8px;z-index:200;max-height:320px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.4)}
+.search-section{padding:.6rem .8rem .3rem;font-size:.6rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--border)}
+.search-item{padding:.55rem .8rem;font-size:.72rem;cursor:pointer;border-bottom:1px solid rgba(37,37,53,.4);transition:background .15s}
+.search-item:hover{background:rgba(124,106,247,.08)}
+.search-item:last-child{border-bottom:none}
+.search-wrap{position:relative;flex:1;max-width:400px}
+
+/* PROGRESS */
+.progress-wrap{margin-bottom:.8rem}
+.progress-label{display:flex;justify-content:space-between;font-size:.68rem;margin-bottom:4px}
+.progress-bar{background:var(--subtle);border-radius:4px;height:5px;overflow:hidden}
+.progress-fill{height:100%;border-radius:4px;background:linear-gradient(90deg,var(--accent),var(--accent3));transition:width 1.2s ease}
+
+/* MODAL */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:500;align-items:center;justify-content:center}
+.modal-overlay.open{display:flex}
+.modal{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:2rem;width:500px;max-width:90vw;max-height:80vh;overflow-y:auto;animation:fadeUp .3s ease}
+.modal h3{font-family:'Syne',sans-serif;font-size:1.1rem;margin-bottom:1.2rem;color:var(--text)}
+.form-group{margin-bottom:1rem}
+.form-label{font-size:.65rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:.4rem}
+.form-input,.form-select{width:100%;background:var(--subtle);border:1px solid var(--border);border-radius:8px;padding:.6rem .9rem;color:var(--text);font-family:'DM Mono',monospace;font-size:.75rem;outline:none;transition:border-color .2s}
+.form-input:focus,.form-select:focus{border-color:var(--accent)}
+.modal-actions{display:flex;gap:.8rem;margin-top:1.5rem;justify-content:flex-end}
+.msg{padding:.6rem 1rem;border-radius:8px;font-size:.72rem;margin-bottom:1rem}
+.msg-success{background:rgba(45,212,191,.1);color:var(--accent3);border:1px solid rgba(45,212,191,.2)}
+.msg-error{background:rgba(232,84,122,.1);color:var(--accent2);border:1px solid rgba(232,84,122,.2)}
+
+/* EMPTY STATE */
+.empty{text-align:center;padding:2.5rem;color:var(--muted);font-size:.75rem}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="logo">Stream<span>Stats</span></div>
+    <div class="tagline">Music Streaming Analytics · Live Backend</div>
+  </div>
+  <div class="live-badge">
+    <div class="live-dot"></div>
+    Connected to FastAPI · SQLite
+  </div>
+</header>
+
+<nav>
+  <button class="active" onclick="showTab('overview',this)">Overview</button>
+  <button onclick="showTab('songs',this)">Songs</button>
+  <button onclick="showTab('artists',this)">Artists</button>
+  <button onclick="showTab('users',this)">Users</button>
+  <button onclick="showTab('stream',this)">+ Log Stream</button>
+</nav>
+
+<div class="search-bar">
+  <div class="search-wrap" id="globalSearchWrap">
+    <input class="search-input" id="globalSearch" placeholder="Search songs, artists, users…" oninput="debounceSearch()" autocomplete="off">
+    <div class="search-results" id="searchResults" style="display:none"></div>
+  </div>
+  <div id="filterArea"></div>
+</div>
+
+<main>
+
+<!-- ── OVERVIEW ─────────────────────────────────────────── -->
+<div class="tab-content active" id="tab-overview">
+  <div class="kpi-row" id="kpiRow">
+    <div class="kpi"><div class="kpi-label">Loading…</div><div class="spinner"></div></div>
+    <div class="kpi"></div><div class="kpi"></div><div class="kpi"></div>
+  </div>
+  <div class="grid-2">
+    <div class="card"><div class="card-title">Streams by Device</div><div style="height:220px"><canvas id="deviceChart"></canvas></div></div>
+    <div class="card"><div class="card-title">Genre Breakdown</div><div class="bar-list" id="genreBars"><div class="loading"><div class="spinner"></div></div></div></div>
+  </div>
+  <div class="grid-2">
+    <div class="card"><div class="card-title">Revenue by Plan</div><div style="height:230px"><canvas id="revenueChart"></canvas></div></div>
+    <div class="card"><div class="card-title">Peak Listening Hours</div><div style="height:230px"><canvas id="hourChart"></canvas></div></div>
+  </div>
+  <div class="card">
+    <div class="card-title">Top Locations</div>
+    <div class="bar-list" id="locationBars"><div class="loading"><div class="spinner"></div></div></div>
+  </div>
+</div>
+
+<!-- ── SONGS ──────────────────────────────────────────────── -->
+<div class="tab-content" id="tab-songs">
+  <div class="card">
+    <div class="card-title">All Songs</div>
+    <div class="tbl-wrap"><table>
+      <thead><tr>
+        <th>#</th><th>Title</th><th>Artist</th><th>Genre</th>
+        <th>Year</th><th>Duration</th><th>Streams</th><th>Completion</th>
+      </tr></thead>
+      <tbody id="songsTbody"><tr><td colspan="8"><div class="loading"><div class="spinner"></div>Loading…</div></td></tr></tbody>
+    </table></div>
+  </div>
+</div>
+
+<!-- ── ARTISTS ────────────────────────────────────────────── -->
+<div class="tab-content" id="tab-artists">
+  <div class="card">
+    <div class="card-title">Artist Performance</div>
+    <div class="tbl-wrap"><table>
+      <thead><tr>
+        <th>#</th><th>Artist</th><th>Country</th><th>Debut</th><th>Verified</th>
+        <th>Streams</th><th>Listeners</th><th>Songs</th><th>Hours</th><th>Score</th>
+      </tr></thead>
+      <tbody id="artistsTbody"><tr><td colspan="10"><div class="loading"><div class="spinner"></div>Loading…</div></td></tr></tbody>
+    </table></div>
+  </div>
+</div>
+
+<!-- ── USERS ──────────────────────────────────────────────── -->
+<div class="tab-content" id="tab-users">
+  <div class="grid-2-1">
+    <div class="card">
+      <div class="card-title">All Users</div>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>#</th><th>Name</th><th>Country</th><th>Age</th><th>Plan</th><th>Streams</th><th>Hours</th><th></th></tr></thead>
+        <tbody id="usersTbody"><tr><td colspan="8"><div class="loading"><div class="spinner"></div>Loading…</div></td></tr></tbody>
+      </table></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Plan Distribution</div>
+      <div style="height:200px"><canvas id="planChart"></canvas></div>
+      <div style="height:230px;margin-top:1.5rem">
+        <div class="card-title">Completion Rates</div>
+        <div id="completionBars"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── LOG STREAM ─────────────────────────────────────────── -->
+<div class="tab-content" id="tab-stream">
+  <div class="card" style="max-width:500px;margin:0 auto">
+    <div class="card-title">Log a New Stream</div>
+    <div id="streamMsg"></div>
+    <div class="form-group">
+      <label class="form-label">User ID (1–15)</label>
+      <input class="form-input" id="f_user" type="number" min="1" max="15" value="1">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Song ID (1–23)</label>
+      <input class="form-input" id="f_song" type="number" min="1" max="23" value="1">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Device Type</label>
+      <select class="form-select" id="f_device">
+        <option>Mobile</option><option>Desktop</option>
+        <option>Smart Speaker</option><option>Tablet</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Location</label>
+      <input class="form-input" id="f_location" type="text" value="Mumbai, India">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Listened (seconds)</label>
+      <input class="form-input" id="f_listened" type="number" min="1" value="200">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" onclick="logStream()">Submit Stream</button>
+      <button class="btn" onclick="document.getElementById('streamMsg').innerHTML=''">Clear</button>
+    </div>
+    <div style="margin-top:1.5rem;padding-top:1rem;border-top:1px solid var(--border);font-size:.68rem;color:var(--muted)">
+      This calls <span style="color:var(--accent)">POST /api/streams</span> which validates the data and inserts into SQLite — same logic as the stored procedure.
+    </div>
+  </div>
+</div>
+
+</main>
+
+<!-- USER HISTORY MODAL -->
+<div class="modal-overlay" id="historyModal">
+  <div class="modal">
+    <h3 id="modalTitle">Listening History</h3>
+    <div id="modalContent"></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = 'http://127.0.0.1:8000';
+let deviceChartInst, revenueChartInst, hourChartInst, planChartInst;
+const COLORS = ['#7c6af7','#e8547a','#2dd4bf','#f59e0b','#a78bfa','#34d399','#fb923c','#60a5fa','#c084fc','#38bdf8'];
+Chart.defaults.color = '#6b6a8a';
+Chart.defaults.font.family = "'DM Mono',monospace";
+Chart.defaults.font.size = 11;
+const gridColor = 'rgba(37,37,53,0.8)';
+
+// ── FETCH HELPER ───────────────────────────────────────────
+async function api(path) {
+  const r = await fetch(API + path);
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+
+// ── TAB SWITCHING ──────────────────────────────────────────
+const loaded = {};
+function showTab(name, btn) {
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  if (btn) btn.classList.add('active');
+  updateFilterArea(name);
+  if (!loaded[name]) { loaded[name] = true; loadTab(name); }
+}
+
+function loadTab(name) {
+  if (name === 'overview') loadOverview();
+  if (name === 'songs')    loadSongs();
+  if (name === 'artists')  loadArtists();
+  if (name === 'users')    loadUsers();
+}
+
+// ── FILTER AREA ────────────────────────────────────────────
+function updateFilterArea(tab) {
+  const el = document.getElementById('filterArea');
+  if (tab === 'songs') {
+    el.innerHTML = `
+      <select class="filter-select" id="genreFilter" onchange="loadSongs()">
+        <option value="">All Genres</option>
+      </select>
+      <select class="filter-select" id="yearFilter" onchange="loadSongs()">
+        <option value="">All Years</option>
+        ${[2022,2021,2020,2019,2018,2017,2016,2015,2014].map(y=>`<option>${y}</option>`).join('')}
+      </select>`;
+    api('/api/songs/genres').then(genres => {
+      const sel = document.getElementById('genreFilter');
+      if (sel) genres.forEach(g => sel.innerHTML += `<option>${g}</option>`);
+    });
+  } else if (tab === 'artists') {
+    el.innerHTML = `
+      <select class="filter-select" id="verifiedFilter" onchange="loadArtists()">
+        <option value="">All Artists</option>
+        <option value="true">Verified Only</option>
+      </select>`;
+  } else if (tab === 'users') {
+    el.innerHTML = `
+      <select class="filter-select" id="planFilter" onchange="loadUsers()">
+        <option value="">All Plans</option>
+        <option>Free</option><option>Premium</option><option>Family</option>
+      </select>`;
+  } else {
+    el.innerHTML = '';
+  }
+}
+
+// ── OVERVIEW ───────────────────────────────────────────────
+async function loadOverview() {
+  const [stats, devices, genres, revenue, hours, locs] = await Promise.all([
+    api('/api/stats/overview'),
+    api('/api/stats/devices'),
+    api('/api/stats/genres'),
+    api('/api/stats/revenue'),
+    api('/api/stats/peak-hours'),
+    api('/api/stats/locations'),
+  ]);
+
+  // KPIs
+  document.getElementById('kpiRow').innerHTML = `
+    <div class="kpi"><div class="kpi-label">Total Streams</div><div class="kpi-val">${stats.total_streams}</div><div class="kpi-sub">${stats.total_users} users · ${stats.total_artists} artists</div></div>
+    <div class="kpi"><div class="kpi-label">Hours Listened</div><div class="kpi-val">${stats.total_hours}h</div><div class="kpi-sub">across all users</div></div>
+    <div class="kpi"><div class="kpi-label">Monthly Revenue</div><div class="kpi-val">$${stats.monthly_revenue}</div><div class="kpi-sub">Free · Premium · Family</div></div>
+    <div class="kpi"><div class="kpi-label">Catalog</div><div class="kpi-val">${stats.total_songs}</div><div class="kpi-sub">songs from ${stats.total_artists} artists</div></div>`;
+
+  // Device donut
+  if (deviceChartInst) deviceChartInst.destroy();
+  deviceChartInst = new Chart(document.getElementById('deviceChart'), {
+    type: 'doughnut',
+    data: { labels: devices.map(d=>d.device_type), datasets:[{data:devices.map(d=>d.streams),backgroundColor:COLORS,borderWidth:0,hoverOffset:6}] },
+    options: { responsive:true,maintainAspectRatio:false,cutout:'70%',plugins:{legend:{position:'bottom',labels:{boxWidth:10,padding:12}}} }
+  });
+
+  // Genre bars
+  const maxG = genres[0]?.streams || 1;
+  document.getElementById('genreBars').innerHTML = genres.map((g,i)=>`
+    <div><div class="bar-meta"><span class="bar-name">${g.genre}</span><span class="bar-count">${g.streams}</span></div>
+    <div class="bar-track"><div class="bar-fill" style="width:${g.streams/maxG*100}%;background:${COLORS[i]}"></div></div></div>`).join('');
+
+  // Revenue bar
+  if (revenueChartInst) revenueChartInst.destroy();
+  revenueChartInst = new Chart(document.getElementById('revenueChart'), {
+    type:'bar',
+    data:{labels:revenue.map(r=>`${r.plan_name} (${r.subscribers})`),datasets:[{data:revenue.map(r=>r.monthly_revenue),backgroundColor:['#6b6a8a','#7c6af7','#2dd4bf'],borderRadius:6,borderSkipped:false}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false}},y:{grid:{color:gridColor},ticks:{callback:v=>'$'+v}}}}
+  });
+
+  // Hour line
+  const allHours = Array.from({length:24},(_,i)=>i);
+  const hourMap = {};
+  hours.forEach(h => hourMap[h.hour_of_day] = h.streams);
+  if (hourChartInst) hourChartInst.destroy();
+  hourChartInst = new Chart(document.getElementById('hourChart'), {
+    type:'line',
+    data:{labels:allHours.map(h=>h+':00'),datasets:[{data:allHours.map(h=>hourMap[h]||0),borderColor:'#7c6af7',backgroundColor:'rgba(124,106,247,0.08)',fill:true,tension:0.4,pointRadius:3,pointBackgroundColor:'#7c6af7'}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:gridColor}},y:{grid:{color:gridColor},beginAtZero:true,ticks:{stepSize:1}}}}
+  });
+
+  // Locations
+  const maxL = locs[0]?.streams || 1;
+  document.getElementById('locationBars').innerHTML = locs.map((l,i)=>`
+    <div><div class="bar-meta"><span class="bar-name">${l.location}</span><span class="bar-count">${l.streams} streams</span></div>
+    <div class="bar-track"><div class="bar-fill" style="width:${l.streams/maxL*100}%;background:${COLORS[i]}"></div></div></div>`).join('');
+}
+
+// ── SONGS ──────────────────────────────────────────────────
+async function loadSongs() {
+  const search = document.getElementById('globalSearch')?.value || '';
+  const genre  = document.getElementById('genreFilter')?.value  || '';
+  const year   = document.getElementById('yearFilter')?.value   || '';
+  let url = `/api/songs?limit=50`;
+  if (search) url += `&search=${encodeURIComponent(search)}`;
+  if (genre)  url += `&genre=${encodeURIComponent(genre)}`;
+  if (year)   url += `&year=${year}`;
+  const songs = await api(url);
+  const tb = document.getElementById('songsTbody');
+  if (!songs.length) { tb.innerHTML = `<tr><td colspan="8"><div class="empty">No songs found.</div></td></tr>`; return; }
+  tb.innerHTML = songs.map((s,i)=>{
+    const rankCls = i===0?'rank-1':i===1?'rank-2':i===2?'rank-3':'rank';
+    const dur = Math.floor(s.duration_sec/60)+':'+(s.duration_sec%60).toString().padStart(2,'0');
+    return `<tr>
+      <td><span class="${rankCls} rank">${i+1}</span></td>
+      <td>${s.title}</td><td>${s.artist_name}</td>
+      <td>${s.genre}</td><td>${s.release_year}</td><td>${dur}</td>
+      <td style="color:var(--accent);font-weight:500">${s.streams||0}</td>
+      <td style="color:var(--accent3)">${s.avg_completion||0}%</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── ARTISTS ────────────────────────────────────────────────
+async function loadArtists() {
+  const search   = document.getElementById('globalSearch')?.value || '';
+  const verified = document.getElementById('verifiedFilter')?.value || '';
+  let url = '/api/artists';
+  const params = [];
+  if (search)   params.push(`search=${encodeURIComponent(search)}`);
+  if (verified) params.push(`verified=true`);
+  if (params.length) url += '?' + params.join('&');
+  const artists = await api(url);
+  const tb = document.getElementById('artistsTbody');
+  if (!artists.length) { tb.innerHTML = `<tr><td colspan="10"><div class="empty">No artists found.</div></td></tr>`; return; }
+  tb.innerHTML = artists.map((a,i)=>`<tr>
+    <td><span class="${i===0?'rank-1':i===1?'rank-2':i===2?'rank-3':'rank'} rank">${i+1}</span></td>
+    <td>${a.artist_name}</td><td>${a.country}</td><td>${a.debut_year}</td>
+    <td>${a.is_verified?'<span class="badge badge-verified">✓ verified</span>':'—'}</td>
+    <td style="color:var(--accent)">${a.total_streams}</td>
+    <td>${a.unique_listeners}</td><td>${a.songs_count}</td>
+    <td style="color:var(--accent3)">${a.total_hours}h</td>
+    <td style="color:var(--accent4)">${a.popularity_score}</td>
+  </tr>`).join('');
+}
+
+// ── USERS ──────────────────────────────────────────────────
+async function loadUsers() {
+  const search = document.getElementById('globalSearch')?.value || '';
+  const plan   = document.getElementById('planFilter')?.value   || '';
+  let url = '/api/users';
+  const params = [];
+  if (search) params.push(`search=${encodeURIComponent(search)}`);
+  if (plan)   params.push(`plan=${encodeURIComponent(plan)}`);
+  if (params.length) url += '?' + params.join('&');
+  const [users, songs] = await Promise.all([api(url), api('/api/songs?limit=5')]);
+
+  const tb = document.getElementById('usersTbody');
+  tb.innerHTML = users.map((u,i)=>{
+    const planCls = u.plan_name==='Free'?'badge-free':u.plan_name==='Premium'?'badge-premium':'badge-family';
+    return `<tr>
+      <td>${i+1}</td><td>${u.name}</td><td>${u.country}</td><td>${u.age}</td>
+      <td><span class="badge ${planCls}">${u.plan_name}</span></td>
+      <td style="color:var(--accent)">${u.total_streams||0}</td>
+      <td style="color:var(--accent3)">${u.total_hours||0}h</td>
+      <td><button class="btn" style="padding:3px 8px;font-size:.6rem" onclick="showHistory(${u.user_id},'${u.name}')">History</button></td>
+    </tr>`;
+  }).join('');
+
+  // Plan donut
+  const planData = {};
+  users.forEach(u => planData[u.plan_name] = (planData[u.plan_name]||0)+1);
+  if (planChartInst) planChartInst.destroy();
+  planChartInst = new Chart(document.getElementById('planChart'),{
+    type:'doughnut',
+    data:{labels:Object.keys(planData),datasets:[{data:Object.values(planData),backgroundColor:['#6b6a8a','#7c6af7','#2dd4bf'],borderWidth:0}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'65%',plugins:{legend:{position:'bottom',labels:{boxWidth:10,padding:12}}}}
+  });
+
+  // Completion bars
+  document.getElementById('completionBars').innerHTML = songs.map(s=>`
+    <div class="progress-wrap">
+      <div class="progress-label"><span>${s.title}</span><span style="color:var(--accent3)">${s.avg_completion||0}%</span></div>
+      <div class="progress-bar"><div class="progress-fill" style="width:${s.avg_completion||0}%"></div></div>
+    </div>`).join('');
+}
+
+// ── USER HISTORY MODAL ─────────────────────────────────────
+async function showHistory(userId, name) {
+  document.getElementById('modalTitle').textContent = name + ' — Listening History';
+  document.getElementById('modalContent').innerHTML = '<div class="loading"><div class="spinner"></div>Loading…</div>';
+  document.getElementById('historyModal').classList.add('open');
+  const history = await api(`/api/users/${userId}/history`);
+  if (!history.length) { document.getElementById('modalContent').innerHTML = '<div class="empty">No streams yet.</div>'; return; }
+  document.getElementById('modalContent').innerHTML = `
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Song</th><th>Artist</th><th>Device</th><th>Completion</th></tr></thead>
+      <tbody>${history.map(h=>`<tr>
+        <td>${h.title}</td><td>${h.artist_name}</td>
+        <td>${h.device_type}</td>
+        <td style="color:var(--accent3)">${h.completion_pct}%</td>
+      </tr>`).join('')}</tbody>
+    </table></div>`;
+}
+function closeModal(){ document.getElementById('historyModal').classList.remove('open'); }
+document.getElementById('historyModal').addEventListener('click', e=>{ if(e.target===e.currentTarget) closeModal(); });
+
+// ── LOG STREAM ─────────────────────────────────────────────
+async function logStream() {
+  const body = {
+    user_id:     parseInt(document.getElementById('f_user').value),
+    song_id:     parseInt(document.getElementById('f_song').value),
+    device_type: document.getElementById('f_device').value,
+    location:    document.getElementById('f_location').value,
+    listened_sec:parseInt(document.getElementById('f_listened').value),
+  };
+  const msgEl = document.getElementById('streamMsg');
+  try {
+    const r = await fetch(API+'/api/streams',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.detail);
+    msgEl.innerHTML = `<div class="msg msg-success">✓ ${data.message}</div>`;
+    // refresh overview if it was loaded
+    loaded['overview'] = false;
+  } catch(e) {
+    msgEl.innerHTML = `<div class="msg msg-error">✗ ${e.message}</div>`;
+  }
+}
+
+// ── GLOBAL SEARCH ──────────────────────────────────────────
+let searchTimer;
+function debounceSearch() {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(runSearch, 300);
+}
+
+async function runSearch() {
+  const q = document.getElementById('globalSearch').value.trim();
+  const box = document.getElementById('searchResults');
+  // also filter active tab
+  const activeTab = document.querySelector('.tab-content.active')?.id?.replace('tab-','');
+  if (activeTab === 'songs')   loadSongs();
+  if (activeTab === 'artists') loadArtists();
+  if (activeTab === 'users')   loadUsers();
+
+  if (q.length < 2) { box.style.display='none'; return; }
+  const data = await api(`/api/search?q=${encodeURIComponent(q)}`);
+  let html = '';
+  if (data.songs.length) {
+    html += `<div class="search-section">Songs</div>`;
+    html += data.songs.map(s=>`<div class="search-item" onclick="document.getElementById('globalSearch').value='${s.title}';document.getElementById('searchResults').style.display='none';loaded['songs']=false;showTab('songs',null);document.querySelector('nav button:nth-child(2)').classList.add('active')"><strong>${s.title}</strong> — ${s.artist_name}</div>`).join('');
+  }
+  if (data.artists.length) {
+    html += `<div class="search-section">Artists</div>`;
+    html += data.artists.map(a=>`<div class="search-item" onclick="document.getElementById('globalSearch').value='${a.artist_name}';document.getElementById('searchResults').style.display='none';loaded['artists']=false;showTab('artists',null)">${a.artist_name} · ${a.country}</div>`).join('');
+  }
+  if (data.users.length) {
+    html += `<div class="search-section">Users</div>`;
+    html += data.users.map(u=>`<div class="search-item">${u.name} · ${u.country}</div>`).join('');
+  }
+  if (!html) html = `<div class="search-item">No results for "${q}"</div>`;
+  box.innerHTML = html;
+  box.style.display = 'block';
+}
+
+document.addEventListener('click', e => {
+  if (!document.getElementById('globalSearchWrap').contains(e.target))
+    document.getElementById('searchResults').style.display = 'none';
+});
+
+// ── INIT ───────────────────────────────────────────────────
+loaded['overview'] = true;
+loadOverview();
+</script>
+</body>
+</html>
